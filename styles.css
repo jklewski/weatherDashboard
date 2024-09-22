@@ -4,18 +4,12 @@ body {
     margin: 0;
     padding: 20px;
     display: flex;
-    justify-content: top;
-    align-items: center;
-    height: 100vh;
-    flex-direction: column;
+    justify-content: top; /* This should be align-items: flex-start */
+    height: 130vh;
+    flex-direction: column; /* Change from 'row' to 'column' */
 }
 
-.dashboard {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-}
+
 
 h1 {
     text-align: center;
@@ -25,8 +19,8 @@ h1 {
 .plot-container {
     width: 90%; /* Covers 90% of the screen width */
     margin-bottom: 20px;
-    background: #ffffff;
+    background: #f4f4f4;
     padding: 10px;
     border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    height: 100%;
 }
