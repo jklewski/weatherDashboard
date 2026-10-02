@@ -163,12 +163,6 @@ h1 {
     outline-offset: 2px;
 }
 
-.info-sub {
-    color: var(--ink-muted);
-    font-size: 0.8125rem;
-    overflow-wrap: anywhere;
-}
-
 /* Section heading above the tiles */
 .section-head {
     display: flex;

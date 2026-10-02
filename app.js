@@ -183,7 +183,7 @@ async function load() {
 function readRange() {
     const m = location.hash.match(/^#(1|7|30|90)d$/);
     if (m) return Number(m[1]);
-    try { return Number(localStorage.getItem(RANGE_KEY)) || 7; } catch { return 7; }
+    try { return Number(localStorage.getItem(RANGE_KEY)) || 30; } catch { return 30; }
 }
 
 function setupRanges() {
@@ -243,9 +243,8 @@ function renderTiles() {
           sub: t ? `${f1(t.min)} – ${f1(t.max)} °C` : '' },
         { label: 'Humidity', kind: 'avg', value: f0(rh?.mean), unit: '%',
           sub: rh ? `${f0(rh.min)} – ${f0(rh.max)} %` : '' },
-        { label: 'Wind', kind: 'avg', value: f1(ws?.mean), unit: 'm/s', sub: '' },
-        { label: 'Gust', kind: 'max', value: f1(g?.max), unit: 'm/s',
-          sub: g ? `Average gust ${f1(g.mean)} m/s` : '' },
+        { label: 'Wind', kind: 'avg', value: f1(ws?.mean), unit: 'm/s',
+          sub: g ? `Max gust ${f1(g.max)} m/s` : '' },
         { label: 'Rain', kind: 'total', value: f1(r?.sum), unit: 'mm', sub: '' },
         { label: 'Solar radiation', kind: 'avg', value: f0(glob?.mean), unit: 'PAR',
           sub: glob ? `Peak ${f0(glob.max)}` : '' },
