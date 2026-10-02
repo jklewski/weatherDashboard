@@ -1,0 +1,11 @@
+{
+    // Commit everything when nothing is staged, so one click on Commit is enough
+    "git.enableSmartCommit": true,
+    // After each commit, pull from GitHub and then push (deploys to GitHub Pages)
+    "git.postCommitCommand": "sync",
+    "git.confirmSync": false,
+    // Put local commits on top of GitHub's instead of creating merge commits
+    "git.rebaseWhenSync": true,
+    // Check GitHub for new commits in the background
+    "git.autofetch": true
+}

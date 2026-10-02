@@ -303,8 +303,14 @@ function buildChart(def, d, container, colors) {
     const seriesColor = i => (i === 0 ? colors.s1 : colors.s2);
     const fmt = (s, v) => (v === null || v === undefined ? '–' : s.fmt ? s.fmt(v) : v.toFixed(1));
 
+    // Not hovering: no values, just a colour key when the chart has two lines
+    const legend = def.series.length > 1
+        ? def.series.map((s, k) => `<span><span class="swatch" style="background:${seriesColor(k)}"></span>${s.label}</span>`).join('')
+        : '';
+
     const updateReadout = idx => {
-        const i = idx ?? (x.length - 1);
+        if (idx == null) { readout.innerHTML = legend; return; }
+        const i = idx;
         const when = x.length ? fmtWhen(def.bars ? x[i] - (daily ? 43200 : 1800) : x[i], daily) : '';
         const vals = def.series.map((s, k) => {
             const swatch = def.series.length > 1 ? `<span class="swatch" style="background:${seriesColor(k)}"></span>` : '';
@@ -312,7 +318,7 @@ function buildChart(def, d, container, colors) {
             return `<span>${swatch}${label}<span class="val">${fmt(s, ys[k][i])}</span></span>`;
         }).join('');
         const period = def.bars ? (daily ? ' (day)' : ' (hour)') : '';
-        readout.innerHTML = `<span class="when">${idx == null ? 'Latest' : when}${idx == null ? '' : period}</span>${vals}`;
+        readout.innerHTML = `<span class="when">${when}${period}</span>${vals}`;
     };
 
     const axis = {
