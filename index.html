@@ -19,12 +19,6 @@
             <h1>Weather Dashboard</h1>
             <p class="status" id="status" aria-live="polite">Loading data…</p>
         </div>
-        <div class="ranges" role="group" aria-label="Time range" id="ranges">
-            <button type="button" data-days="1">24 h</button>
-            <button type="button" data-days="7">7 d</button>
-            <button type="button" data-days="30">30 d</button>
-            <button type="button" data-days="90">90 d</button>
-        </div>
     </header>
 
     <main>
@@ -34,7 +28,7 @@
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>
                 </a>
                 <div>
-                    <div class="label">Station location</div>
+                    <div class="label">Location</div>
                 </div>
             </div>
             <div class="info-item">
@@ -42,7 +36,7 @@
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 5h-6v4h6v2h-6v5h-2v-5H5v-2h6V8H5V5h14v3z"/></svg>
                 </a>
                 <div>
-                    <div class="label">Need more data?</div>
+                    <div class="label">Data</div>
                 </div>
             </div>
             <div class="info-item">
@@ -50,17 +44,30 @@
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/></svg>
                 </a>
                 <div>
-                    <div class="label">Questions or raw data?</div>
+                    <div class="label">Contact</div>
                 </div>
             </div>
         </section>
 
-        <div class="section-head">
-            <h2 id="tiles-title">Last 24 hours</h2>
-            <span class="section-note" id="tiles-window"></span>
-        </div>
-        <section class="tiles" id="tiles" aria-labelledby="tiles-title"></section>
-        <section class="charts" id="charts" aria-label="Charts"></section>
+        <section class="block" aria-labelledby="tiles-title">
+            <div class="section-head">
+                <h2 id="tiles-title">Current and daily conditions</h2>
+            </div>
+            <div class="tiles" id="tiles"></div>
+        </section>
+
+        <section class="block history" aria-labelledby="charts-title">
+            <div class="section-head">
+                <h2 id="charts-title">Historic data</h2>
+                <div class="ranges" role="group" aria-label="Time range" id="ranges">
+                    <button type="button" data-days="1">24 h</button>
+                    <button type="button" data-days="7">7 d</button>
+                    <button type="button" data-days="30">30 d</button>
+                    <button type="button" data-days="90">90 d</button>
+                </div>
+            </div>
+            <div class="charts" id="charts"></div>
+        </section>
     </main>
 
     <footer class="foot">

@@ -164,23 +164,28 @@ h1 {
 }
 
 /* Section heading above the tiles */
+/* The page has two parts: current conditions, then historic charts with their own range switch */
+.block { margin-top: 20px; }
+
+.block.history {
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid var(--axis);
+}
+
 .section-head {
     display: flex;
     flex-wrap: wrap;
-    align-items: baseline;
-    gap: 2px 10px;
-    margin: 4px 2px 8px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    margin: 0 2px 10px;
 }
 
 .section-head h2 {
     margin: 0;
-    font-size: 1rem;
-    font-weight: 600;
-}
-
-.section-note {
-    color: var(--ink-muted);
-    font-size: 0.8125rem;
+    font-size: 1.125rem;
+    font-weight: 650;
 }
 
 /* Current-condition tiles */
@@ -204,19 +209,6 @@ h1 {
     font-size: 0.8125rem;
 }
 
-.tile .kind {
-    margin-left: 6px;
-    padding: 1px 6px;
-    border-radius: 999px;
-    background: var(--grid);
-    color: var(--ink-2);
-    font-size: 0.6875rem;
-    font-weight: 550;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    vertical-align: 1px;
-}
-
 .tile .value {
     margin-top: 2px;
     font-size: 1.75rem;
@@ -229,6 +221,13 @@ h1 {
 .tile .unit {
     margin-left: 3px;
     font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--ink-2);
+}
+
+/* Gust in brackets after the mean wind, a step smaller so the tile stays narrow */
+.tile .paren {
+    font-size: 0.7em;
     font-weight: 500;
     color: var(--ink-2);
 }

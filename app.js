@@ -36,11 +36,14 @@ const CHARTS = [
     { id: 'temp', title: 'Temperature', unit: '°C', series: [{ key: 'temp', label: 'Temperature' }] },
     { id: 'rh', title: 'Relative humidity', unit: '%', range: [0, 100], series: [{ key: 'rh', label: 'Humidity' }] },
     { id: 'rain', title: 'Rain', unit: 'mm', bars: true, series: [{ key: 'rain', label: 'Rain' }] },
-    { id: 'wind', title: 'Wind speed', unit: 'm/s', min0: true,
+    // fill: shade the lower series down to zero and the band between it and the upper series
+    // (remove for plain lines). The upper value always includes the lower one, so they are not stacked.
+    { id: 'wind', title: 'Wind speed', unit: 'm/s', min0: true, fill: { upper: 'gust', lower: 'ws' },
       series: [{ key: 'ws', label: 'Mean' }, { key: 'gust', label: 'Gust' }] },
     { id: 'wd', title: 'Wind direction', unit: '', points: true, range: [0, 360],
       series: [{ key: 'wd', label: 'From', fmt: v => `${compass(v)} ${Math.round(v)}°` }] },
-    { id: 'rad', title: 'Solar radiation', unit: 'PAR, µmol/m²/s', min0: true,
+    // The band between global and diffuse is direct sunlight
+    { id: 'rad', title: 'Solar radiation', unit: 'PAR, µmol/m²/s', min0: true, fill: { upper: 'glob', lower: 'dif' },
       series: [{ key: 'glob', label: 'Global', fmt: v => Math.round(v) }, { key: 'dif', label: 'Diffuse', fmt: v => Math.round(v) }] },
     { id: 'co2', title: 'CO₂', unit: 'ppm', series: [{ key: 'co2', label: 'CO₂', fmt: v => Math.round(v) }] },
 ];
@@ -51,7 +54,9 @@ let rangeDays = readRange();
 let plots = [];
 
 // ---------- Time helpers ----------
-// Timestamps are the logger's wall-clock time. They are kept as UTC so they display exactly as logged.
+// Timestamps are the logger's wall-clock time (Swedish time). They are kept as UTC so they display
+// exactly as logged, and "now" is converted to Swedish wall-clock time so comparisons work in any time zone.
+const STATION_TZ = 'Europe/Stockholm';
 function parseTs(s) {
     const [d, tm = '00:00:00'] = s.split(' ');
     const [y, mo, da] = d.split('-').map(Number);
@@ -63,9 +68,13 @@ function fmtTs(sec) {
     return new Date(sec * 1000).toISOString().slice(0, 19).replace('T', ' ');
 }
 
+const stationClock = new Intl.DateTimeFormat('en-US', {
+    timeZone: STATION_TZ, hourCycle: 'h23',
+    year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric',
+});
 function nowWallClock() {
-    const d = new Date();
-    return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds()) / 1000;
+    const p = Object.fromEntries(stationClock.formatToParts(new Date()).map(x => [x.type, Number(x.value)]));
+    return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) / 1000;
 }
 
 const dateFmt = new Intl.DateTimeFormat(undefined, { timeZone: 'UTC', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
@@ -220,16 +229,35 @@ function binRain(d, days) {
 }
 
 // ---------- Tiles ----------
-// Tiles summarise the 24 hours up to the latest reading
-function stats24(key) {
+// Tiles show the latest reading; the small text below summarises the 24 hours up to it
+function stats(key, seconds) {
     const end = data.t[data.t.length - 1];
     let min = Infinity, max = -Infinity, sum = 0, n = 0;
-    for (let i = data.t.length - 1; i >= 0 && data.t[i] > end - 86400; i--) {
+    for (let i = data.t.length - 1; i >= 0 && data.t[i] > end - seconds; i--) {
         const v = data[key][i];
         if (v === null) continue;
         min = Math.min(min, v); max = Math.max(max, v); sum += v; n++;
     }
     return n ? { min, max, sum, mean: sum / n } : null;
+}
+const stats24 = key => stats(key, 86400);
+
+// Latest valid value; looks back up to an hour so a single bad reading doesn't blank the tile
+function latest(key) {
+    const end = data.t[data.t.length - 1];
+    for (let i = data.t.length - 1; i >= 0 && data.t[i] > end - 3600; i--) {
+        if (data[key][i] !== null) return data[key][i];
+    }
+    return null;
+}
+
+// Rain over the last 30 min, described by intensity (thresholds as mm/h: 2.5 and 7.6)
+function rainText(mm) {
+    if (mm === null) return '–';
+    if (mm === 0) return 'None';
+    if (mm < 1.25) return 'Light';
+    if (mm < 3.8) return 'Moderate';
+    return 'Heavy';
 }
 
 function renderTiles() {
@@ -237,27 +265,27 @@ function renderTiles() {
     const f0 = v => (v === null || v === undefined ? '–' : Math.round(v));
     const t = stats24('temp'), rh = stats24('rh'), ws = stats24('ws'), g = stats24('gust');
     const r = stats24('rain'), glob = stats24('glob'), co2 = stats24('co2');
+    const r30 = stats('rain', 1800);
 
     const tiles = [
-        { label: 'Temperature', kind: 'avg', value: f1(t?.mean), unit: '°C',
+        { label: 'Temperature', value: f1(latest('temp')), unit: '°C',
           sub: t ? `${f1(t.min)} – ${f1(t.max)} °C` : '' },
-        { label: 'Humidity', kind: 'avg', value: f0(rh?.mean), unit: '%',
+        { label: 'Humidity', value: f0(latest('rh')), unit: '%',
           sub: rh ? `${f0(rh.min)} – ${f0(rh.max)} %` : '' },
-        { label: 'Wind', kind: 'avg', value: f1(ws?.mean), unit: 'm/s',
-          sub: g ? `Max gust ${f1(g.max)} m/s` : '' },
-        { label: 'Rain', kind: 'total', value: f1(r?.sum), unit: 'mm', sub: '' },
-        { label: 'Solar radiation', kind: 'avg', value: f0(glob?.mean), unit: 'PAR',
-          sub: glob ? `Peak ${f0(glob.max)}` : '' },
-        { label: 'CO₂', kind: 'avg', value: f0(co2?.mean), unit: 'ppm',
+        { label: 'Wind', value: `${f1(latest('ws'))}<span class="paren"> (${f1(latest('gust'))})</span>`, unit: 'm/s',
+          sub: ws || g ? `Max ${f1(ws?.max)} (${f1(g?.max)}) m/s` : '' },
+        { label: 'Rain', value: rainText(r30 ? r30.sum : null), unit: '',
+          sub: r ? `Total ${f1(r.sum)} mm` : '' },
+        { label: 'Solar radiation', value: f0(latest('glob')), unit: 'PAR',
+          sub: glob ? `Peak ${f0(glob.max)} PAR` : '' },
+        { label: 'CO₂', value: f0(latest('co2')), unit: 'ppm',
           sub: co2 ? `${f0(co2.min)} – ${f0(co2.max)} ppm` : '' },
     ];
 
-    const end = data.t[data.t.length - 1];
-    $('#tiles-window').textContent = `${fmtWhen(end - 86400)} – ${fmtWhen(end)}`;
     $('#tiles').innerHTML = tiles.map(t => `
         <div class="tile">
-            <div class="label">${t.label}<span class="kind">${t.kind}</span></div>
-            <div class="value">${t.value}<span class="unit">${t.unit}</span></div>
+            <div class="label">${t.label}</div>
+            <div class="value">${t.value}${t.unit ? `<span class="unit">${t.unit}</span>` : ''}</div>
             <div class="sub">${t.sub || '&nbsp;'}</div>
         </div>`).join('');
 }
@@ -267,12 +295,25 @@ function renderStatus() {
     const stale = nowWallClock() - last > STALE_HOURS * 3600;
     const el = $('#status');
     el.classList.toggle('stale', stale);
-    el.textContent = `Latest reading ${fmtWhen(last)} (${ago(last)})`;
+    el.textContent = `Last reading ${ago(last)}`;
 }
 
 // ---------- Charts ----------
 function cssVar(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+// uPlot band between the upper and lower series (indices are +1: series 0 is the x axis)
+function fillBand(def, seriesColor) {
+    const up = def.series.findIndex(s => s.key === def.fill.upper);
+    const lo = def.series.findIndex(s => s.key === def.fill.lower);
+    return { series: [up + 1, lo + 1], fill: withAlpha(seriesColor(up), 0.3) };
+}
+
+// '#2a78d6' -> 'rgba(42, 120, 214, a)' for translucent fills on the canvas
+function withAlpha(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
 }
 
 function chartHeight() {
@@ -342,6 +383,10 @@ function buildChart(def, d, container, colors) {
         if (def.points) {
             return { ...base, width: 0, paths: () => null, points: { show: true, size: 3, width: 0, fill: colors.s1, stroke: colors.s1 } };
         }
+        if (def.fill) {
+            // The lower series fills down to zero; the upper one is filled down to it via a band below
+            return { ...base, width: 1, fill: s.key === def.fill.lower ? withAlpha(seriesColor(k), 0.35) : undefined };
+        }
         return base;
     }));
 
@@ -370,6 +415,7 @@ function buildChart(def, d, container, colors) {
         tzDate: ts => uPlot.tzDate(new Date(ts * 1e3), 'Etc/UTC'),
         axes: [{ ...axis, space: 64, values: timeTicks }, yAxis],
         series,
+        bands: def.fill ? [fillBand(def, seriesColor)] : [],
         hooks: { setCursor: [u => updateReadout(u.cursor.idx)] },
     };
 
