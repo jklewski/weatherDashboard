@@ -7,7 +7,6 @@
 const SHEET_ID = '17ZaP_LAmInf3U9zOsFkX-KpC1ypWF3ZrvFiRI71pUiY';
 const KEEP_DAYS = 92;
 const CACHE_KEY = 'weather-cache-v1';
-const RANGE_KEY = 'weather-range';
 const STALE_HOURS = 2;
 const MISSING = -999;
 
@@ -188,20 +187,23 @@ async function load() {
 }
 
 // ---------- Range ----------
-// A link like .../#30d opens that range; otherwise the last choice on this device is used
+// Charts are hidden until a range is picked. A link like .../#30d opens with that range shown.
 function readRange() {
     const m = location.hash.match(/^#(1|7|30|90)d$/);
-    if (m) return Number(m[1]);
-    try { return Number(localStorage.getItem(RANGE_KEY)) || 30; } catch { return 30; }
+    return m ? Number(m[1]) : null;
 }
 
+// Clicking a range shows the charts; clicking the selected range again hides them
 function setupRanges() {
     const buttons = document.querySelectorAll('#ranges button');
-    const sync = () => buttons.forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.days) === rangeDays)));
+    const sync = () => {
+        buttons.forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.days) === rangeDays)));
+        $('#charts-hint').hidden = rangeDays !== null;
+    };
     buttons.forEach(b => b.addEventListener('click', () => {
-        rangeDays = Number(b.dataset.days);
-        try { localStorage.setItem(RANGE_KEY, rangeDays); } catch { /* ignore */ }
-        history.replaceState(null, '', `#${rangeDays}d`);
+        const days = Number(b.dataset.days);
+        rangeDays = days === rangeDays ? null : days;
+        history.replaceState(null, '', rangeDays ? `#${rangeDays}d` : location.pathname + location.search);
         sync();
         if (data) renderCharts();
     }));
@@ -341,7 +343,10 @@ function buildChart(def, d, container, colors) {
         x = d.t; ys = def.series.map(s => d[s.key]);
     }
 
-    const seriesColor = i => (i === 0 ? colors.s1 : colors.s2);
+    // Filled charts colour by role (upper blue, lower orange) so wind and radiation look alike
+    const seriesColor = def.fill
+        ? i => (def.series[i].key === def.fill.upper ? colors.s1 : colors.s2)
+        : i => (i === 0 ? colors.s1 : colors.s2);
     const fmt = (s, v) => (v === null || v === undefined ? '–' : s.fmt ? s.fmt(v) : v.toFixed(1));
 
     // Not hovering: no values, just a colour key when the chart has two lines
@@ -385,7 +390,7 @@ function buildChart(def, d, container, colors) {
         }
         if (def.fill) {
             // The lower series fills down to zero; the upper one is filled down to it via a band below
-            return { ...base, width: 1, fill: s.key === def.fill.lower ? withAlpha(seriesColor(k), 0.35) : undefined };
+            return { ...base, width: 0.75, fill: s.key === def.fill.lower ? withAlpha(seriesColor(k), 0.35) : undefined };
         }
         return base;
     }));
@@ -413,7 +418,9 @@ function buildChart(def, d, container, colors) {
             },
         },
         tzDate: ts => uPlot.tzDate(new Date(ts * 1e3), 'Etc/UTC'),
-        axes: [{ ...axis, space: 64, values: timeTicks }, yAxis],
+        // Multi-day ranges tick on whole days only, so wide charts don't repeat the same date
+        axes: [{ ...axis, space: 64, size: 28, values: timeTicks,
+                 incrs: rangeDays > 1 ? [1, 2, 7, 14, 30].map(n => n * 86400) : [1, 2, 3, 6, 12].map(n => n * 3600) }, yAxis],
         series,
         bands: def.fill ? [fillBand(def, seriesColor)] : [],
         hooks: { setCursor: [u => updateReadout(u.cursor.idx)] },
@@ -452,6 +459,7 @@ function renderCharts() {
     plots = [];
     const container = $('#charts');
     container.innerHTML = '';
+    if (rangeDays === null) return;
     const d = sliceRange(data, rangeDays);
     const colors = {
         s1: cssVar('--series-1'), s2: cssVar('--series-2'), muted: cssVar('--ink-muted'),
