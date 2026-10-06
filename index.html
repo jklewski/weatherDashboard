@@ -16,7 +16,7 @@
 <body>
     <header class="top">
         <div>
-            <h1>Weather Dashboard</h1>
+            <h1>LTH Weather</h1>
             <p class="status" id="status" aria-live="polite">Loading data…</p>
         </div>
     </header>
@@ -39,7 +39,7 @@
 
         <section class="block" aria-labelledby="tiles-title">
             <div class="section-head">
-                <h2 id="tiles-title">Current and daily conditions</h2>
+                <h2 id="tiles-title">Current and last 24 hours</h2>
             </div>
             <div class="tiles" id="tiles"></div>
         </section>
@@ -58,5 +58,10 @@
             <div class="charts" id="charts"></div>
         </section>
     </main>
+
+    <!-- Cloudflare Web Analytics -->
+    <script defer src="https://static.cloudflareinsights.com/beacon.min.js"
+        data-cf-beacon='{"token":"bd7ae616112e47e5b32b7ba05508f87d"}'></script>
+    <!-- End Cloudflare Web Analytics -->
 </body>
 </html>

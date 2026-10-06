@@ -37,9 +37,11 @@ const CHARTS = [
     { id: 'rain', title: 'Rain', unit: 'mm', bars: true, series: [{ key: 'rain', label: 'Rain' }] },
     // fill: shade the lower series down to zero and the band between it and the upper series
     // (remove for plain lines). The upper value always includes the lower one, so they are not stacked.
-    { id: 'wind', title: 'Wind speed', unit: 'm/s', min0: true, fill: { upper: 'gust', lower: 'ws' },
+    // dirKey: draw a strip of wind-direction arrows above the chart and show the direction on hover
+    { id: 'wind', title: 'Wind speed', unit: 'm/s', min0: true, fill: { upper: 'gust', lower: 'ws' }, dirKey: 'wd',
       series: [{ key: 'ws', label: 'Mean' }, { key: 'gust', label: 'Gust' }] },
-    { id: 'wd', title: 'Wind direction', unit: '', points: true, range: [0, 360],
+    // hidden: kept for later; the wind speed chart shows direction as arrows instead
+    { id: 'wd', title: 'Wind direction', unit: '', points: true, hidden: true, range: [0, 360],
       series: [{ key: 'wd', label: 'From', fmt: v => `${compass(v)} ${Math.round(v)}°` }] },
     // The band between global and diffuse is direct sunlight
     { id: 'rad', title: 'Solar radiation', unit: 'PAR, µmol/m²/s', min0: true, fill: { upper: 'glob', lower: 'dif' },
@@ -262,6 +264,14 @@ function rainText(mm) {
     return 'Heavy';
 }
 
+// Small arrow pointing where the wind blows to (the logger gives the direction it comes from)
+function windArrow(deg) {
+    if (deg === null) return ' ';
+    const from = `From ${compass(deg)} (${Math.round(deg)}°)`;
+    return `<svg class="wind-arrow" viewBox="0 0 24 24" style="transform: rotate(${deg + 180}deg)" role="img" aria-label="${from}">`
+        + `<title>${from}</title><path fill="currentColor" d="M12 2 19 20 12 16 5 20z"/></svg>`;
+}
+
 function renderTiles() {
     const f1 = v => (v === null || v === undefined ? '–' : v.toFixed(1));
     const f0 = v => (v === null || v === undefined ? '–' : Math.round(v));
@@ -274,7 +284,7 @@ function renderTiles() {
           sub: t ? `${f1(t.min)} – ${f1(t.max)} °C` : '' },
         { label: 'Humidity', value: f0(latest('rh')), unit: '%',
           sub: rh ? `${f0(rh.min)} – ${f0(rh.max)} %` : '' },
-        { label: 'Wind', value: `${f1(latest('ws'))}<span class="paren"> (${f1(latest('gust'))})</span>`, unit: 'm/s',
+        { label: 'Wind', value: `${f1(latest('ws'))}<span class="paren"> (${f1(latest('gust'))})</span>`, unit: 'm/s', after: windArrow(latest('wd')),
           sub: ws || g ? `Max ${f1(ws?.max)} (${f1(g?.max)}) m/s` : '' },
         { label: 'Rain', value: rainText(r30 ? r30.sum : null), unit: '',
           sub: r ? `Total ${f1(r.sum)} mm` : '' },
@@ -287,7 +297,7 @@ function renderTiles() {
     $('#tiles').innerHTML = tiles.map(t => `
         <div class="tile">
             <div class="label">${t.label}</div>
-            <div class="value">${t.value}${t.unit ? `<span class="unit">${t.unit}</span>` : ''}</div>
+            <div class="value">${t.value}${t.unit ? `<span class="unit">${t.unit}</span>` : ''}${t.after || ''}</div>
             <div class="sub">${t.sub || '&nbsp;'}</div>
         </div>`).join('');
 }
@@ -303,6 +313,52 @@ function renderStatus() {
 // ---------- Charts ----------
 function cssVar(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+// Row of arrows above the wind chart, one per block of time. The block length grows with the
+// range so arrows stay at least ~20 px apart. Each arrow is the speed-weighted mean direction
+// of its block and points where the wind blows to; calm blocks get no arrow, light wind is faint.
+const DIR_BLOCKS = [1, 2, 3, 6, 12, 24, 48, 72, 168].map(h => h * 3600);
+function drawDirectionStrip(u, d, dirKey, color) {
+    const t = u.data[0];
+    if (t.length < 2) return;
+    const span = u.scales.x.max - u.scales.x.min;
+    const plotW = u.bbox.width / uPlot.pxRatio;
+    const size = DIR_BLOCKS.find(s => plotW / (span / s) >= 20) || DIR_BLOCKS[DIR_BLOCKS.length - 1];
+
+    // Sum the wind vectors per block (direction "from", weighted by speed)
+    const blocks = new Map();
+    for (let i = 0; i < t.length; i++) {
+        const ws = d.ws[i], wd = d[dirKey][i];
+        if (ws === null || wd === null) continue;
+        const key = Math.floor((t[i] - 1) / size) * size;
+        const b = blocks.get(key) || { x: 0, y: 0, sum: 0, n: 0 };
+        const rad = wd * Math.PI / 180;
+        b.x += ws * Math.sin(rad); b.y += ws * Math.cos(rad); b.sum += ws; b.n++;
+        blocks.set(key, b);
+    }
+    const maxMean = Math.max(...[...blocks.values()].map(b => b.sum / b.n), 1);
+
+    const ctx = u.ctx, r = uPlot.pxRatio;
+    const cy = u.bbox.top - 12 * r;
+    ctx.save();
+    ctx.fillStyle = color;
+    for (const [start, b] of blocks) {
+        const mean = b.sum / b.n;
+        if (mean < 0.3) continue;
+        const cx = u.valToPos(start + size / 2, 'x', true);
+        if (cx < u.bbox.left || cx > u.bbox.left + u.bbox.width) continue;
+        const from = Math.atan2(b.x, b.y);
+        ctx.globalAlpha = 0.3 + 0.7 * Math.min(1, mean / maxMean);
+        ctx.setTransform(r, 0, 0, r, 0, 0);
+        ctx.translate(cx / r, cy / r);
+        ctx.rotate(from + Math.PI);      // canvas y points down, so 0 rad = arrow pointing up (north)
+        ctx.beginPath();
+        ctx.moveTo(0, -6); ctx.lineTo(4.5, 6); ctx.lineTo(0, 3); ctx.lineTo(-4.5, 6);
+        ctx.closePath();
+        ctx.fill();
+    }
+    ctx.restore();
 }
 
 // uPlot band between the upper and lower series (indices are +1: series 0 is the x axis)
@@ -364,7 +420,8 @@ function buildChart(def, d, container, colors) {
             return `<span>${swatch}${label}<span class="val">${fmt(s, ys[k][i])}</span></span>`;
         }).join('');
         const period = def.bars ? (daily ? ' (day)' : ' (hour)') : '';
-        readout.innerHTML = `<span class="when">${when}${period}</span>${vals}`;
+        const dir = def.dirKey && d[def.dirKey][i] !== null ? `<span>${windArrow(d[def.dirKey][i])}${compass(d[def.dirKey][i])}</span>` : '';
+        readout.innerHTML = `<span class="when">${when}${period}</span>${vals}${dir}`;
     };
 
     const axis = {
@@ -398,7 +455,7 @@ function buildChart(def, d, container, colors) {
     const opts = {
         width: 300,
         height: chartHeight(),
-        padding: [8, 8, 0, 0],
+        padding: [def.dirKey ? 24 : 8, 8, 0, 0],
         legend: { show: false },
         cursor: {
             sync: { key: 'weather' },
@@ -423,7 +480,10 @@ function buildChart(def, d, container, colors) {
                  incrs: rangeDays > 1 ? [1, 2, 7, 14, 30].map(n => n * 86400) : [1, 2, 3, 6, 12].map(n => n * 3600) }, yAxis],
         series,
         bands: def.fill ? [fillBand(def, seriesColor)] : [],
-        hooks: { setCursor: [u => updateReadout(u.cursor.idx)] },
+        hooks: {
+            setCursor: [u => updateReadout(u.cursor.idx)],
+            draw: def.dirKey ? [u => drawDirectionStrip(u, d, def.dirKey, colors.ink2)] : [],
+        },
     };
 
     const plot = new uPlot(opts, [x, ...ys], plotEl);
@@ -463,9 +523,9 @@ function renderCharts() {
     const d = sliceRange(data, rangeDays);
     const colors = {
         s1: cssVar('--series-1'), s2: cssVar('--series-2'), muted: cssVar('--ink-muted'),
-        grid: cssVar('--grid'), axis: cssVar('--axis'), card: cssVar('--card'),
+        grid: cssVar('--grid'), axis: cssVar('--axis'), card: cssVar('--card'), ink2: cssVar('--ink-2'),
     };
-    plots = CHARTS.map(def => buildChart(def, d, container, colors));
+    plots = CHARTS.filter(def => !def.hidden).map(def => buildChart(def, d, container, colors));
 }
 
 function render() {

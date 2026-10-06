@@ -233,6 +233,17 @@ h1 {
 }
 
 /* Gust in brackets after the mean wind, a step smaller so the tile stays narrow */
+/* Wind direction arrow in the wind tile and the chart readout; rotated in app.js */
+.wind-arrow {
+    width: 0.7em;
+    height: 0.7em;
+    margin-left: 0.3em;
+    vertical-align: 0.05em;
+    color: var(--accent);
+}
+
+.readout .wind-arrow { width: 0.85em; height: 0.85em; margin: 0 0.25em 0 0; vertical-align: -0.05em; }
+
 .tile .paren {
     font-size: 0.7em;
     font-weight: 500;

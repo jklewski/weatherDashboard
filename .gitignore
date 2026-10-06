@@ -1,0 +1,17 @@
+# Allow-list: ignore everything, then re-include only what the site and repo need.
+# To publish a new file, add a "!filename" line below.
+*
+
+# The dashboard (served by GitHub Pages)
+!index.html
+!app.js
+!styles.css
+
+# Repo files
+!README.md
+!.gitignore
+
+# Shared VS Code settings (auto-sync on commit)
+!.vscode/
+.vscode/*
+!.vscode/settings.json
